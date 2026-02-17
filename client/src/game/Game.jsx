@@ -12,8 +12,8 @@ export const Game = ({ client }) => {
     gameRef.current = new Phaser.Game({
       type: Phaser.AUTO,
       parent: containerRef.current,
-      width: 1920,
-      height: 1080,
+      width: 1280,
+      height: 720,
       backgroundColor: "#0d1112",
       scale: {
         mode: Phaser.Scale.RESIZE,

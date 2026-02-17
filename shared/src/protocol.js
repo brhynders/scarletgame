@@ -6,6 +6,9 @@ const PlayerStruct = Schema.struct({
   y: Schema.f32,
   vx: Schema.f32,
   vy: Schema.f32,
+  angle: Schema.f32,
+  weaponType: Schema.u8,
+  health: Schema.u8,
 });
 
 export const protocol = {
@@ -26,6 +29,7 @@ export const protocol = {
       y: Schema.f32,
       vx: Schema.f32,
       vy: Schema.f32,
+      angle: Schema.f32,
     },
   },
   Ready: {
@@ -63,6 +67,30 @@ export const protocol = {
     channel: "reliable",
     fields: {
       map: Schema.string,
+    },
+  },
+  Shoot: {
+    id: 7,
+    channel: "unreliable",
+    fields: {
+      ownerId: Schema.u8,
+      weaponType: Schema.u8,
+      x: Schema.f32,
+      y: Schema.f32,
+      velX: Schema.f32,
+      velY: Schema.f32,
+    },
+  },
+  BulletHit: {
+    id: 8,
+    channel: "reliable",
+    fields: {
+      targetId: Schema.u8,
+      attackerId: Schema.u8,
+      damage: Schema.u8,
+      health: Schema.u8,
+      x: Schema.f32,
+      y: Schema.f32,
     },
   },
 };

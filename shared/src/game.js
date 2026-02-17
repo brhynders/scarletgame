@@ -3,6 +3,7 @@ import { maps } from "./data/maps.js";
 
 export class GameState {
   players = [];
+  bullets = [];
   map = null;
 
   constructor(ctx) {
@@ -19,6 +20,18 @@ export class GameState {
   update() {
     for (const player of this.players) {
       player.update(this.ctx);
+    }
+
+    for (const bullet of this.bullets) {
+      bullet.update(this.ctx);
+    }
+
+    // Remove dead bullets
+    for (let i = this.bullets.length - 1; i >= 0; i--) {
+      if (!this.bullets[i].alive) {
+        this.bullets[i].destroy();
+        this.bullets.splice(i, 1);
+      }
     }
   }
 

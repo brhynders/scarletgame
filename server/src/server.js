@@ -4,6 +4,7 @@ import {
   FIXED_DT,
   GameState,
   Player,
+  Bullet,
   PLAYER_RADIUS,
 } from "game-shared";
 
@@ -29,7 +30,7 @@ export class Server {
     this.last = performance.now();
     this.accumulator = 0;
 
-    this.currentMap = "map";
+    this.currentMap = "map2";
     this.game.loadMap(this.currentMap);
   }
 
@@ -73,6 +74,7 @@ export class Server {
       player.y = snap.y;
       player.vx = snap.vx;
       player.vy = snap.vy;
+      player.angle = snap.angle;
     }
     this.clientSnapshots.clear();
 
@@ -87,6 +89,9 @@ export class Server {
       y: p.y,
       vx: p.vx,
       vy: p.vy,
+      angle: p.angle,
+      weaponType: p.weaponType,
+      health: p.health,
     }));
     this.net.broadcastMessage("ServerSnapshot", { tick: this.tickCount, players });
   }
@@ -121,6 +126,8 @@ export class Server {
       }
 
       const player = new Player(playerId, spawnX, spawnY);
+      player.health = 100;
+      player.weaponType = 0;
       this.game.addPlayer(player);
       this.clientToPlayer.set(clientId, playerId);
 
@@ -131,6 +138,9 @@ export class Server {
         y: p.y,
         vx: p.vx,
         vy: p.vy,
+        angle: p.angle,
+        weaponType: p.weaponType,
+        health: p.health,
       }));
       this.net.sendMessage(clientId, "Welcome", {
         playerId,
@@ -150,6 +160,15 @@ export class Server {
       const prev = this.clientSnapshots.get(clientId);
       if (prev && data.tick <= prev.tick) return;
       this.clientSnapshots.set(clientId, data);
+    }
+
+    if (type === "Shoot") {
+      // Create bullet on server
+      const bullet = new Bullet(data, this.game.ctx);
+      this.game.bullets.push(bullet);
+
+      // Broadcast to all other clients (exclude sender)
+      this.net.broadcastMessage("Shoot", data, clientId);
     }
   }
 

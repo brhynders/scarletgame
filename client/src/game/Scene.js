@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import {
   GameState,
   Player,
+  Bullet,
   FIXED_DT,
   WORLD_WIDTH,
   WORLD_HEIGHT,
@@ -33,6 +34,10 @@ export class Scene extends Phaser.Scene {
     this.tileLayer = null;
     this.tilemap = null;
     this.backgroundGfx = null;
+
+    // Smoothed aim offset for camera look-ahead
+    this.aimOffsetX = 0;
+    this.aimOffsetY = 0;
   }
 
   create() {
@@ -44,13 +49,22 @@ export class Scene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D,
       jump: Phaser.Input.Keyboard.KeyCodes.W,
+      weapon1: Phaser.Input.Keyboard.KeyCodes.ONE,
+      weapon2: Phaser.Input.Keyboard.KeyCodes.TWO,
+      weapon3: Phaser.Input.Keyboard.KeyCodes.THREE,
+      weapon4: Phaser.Input.Keyboard.KeyCodes.FOUR,
+      weapon5: Phaser.Input.Keyboard.KeyCodes.FIVE,
+      reload: Phaser.Input.Keyboard.KeyCodes.R,
     });
+
+    // Disable right-click context menu so right mouse button works as jetpack
+    this.input.mouse.disableContextMenu();
 
     // Setup camera
     const zoomX = this.scale.width / WORLD_WIDTH;
     const zoomY = this.scale.height / WORLD_HEIGHT;
     this.cameras.main.setZoom(Math.max(zoomX, zoomY));
-    this.cameras.main.roundPixels = true;
+    this.cameras.main.roundPixels = false;
     this.scale.on("resize", (gameSize) => {
       const zx = gameSize.width / WORLD_WIDTH;
       const zy = gameSize.height / WORLD_HEIGHT;
@@ -131,13 +145,7 @@ export class Scene extends Phaser.Scene {
     this.tileLayer.setDepth(-500);
   }
 
-  setupCamera(map) {
-    this.cameras.main.setBounds(0, 0, map.pixelWidth, map.pixelHeight);
-    const localPlayer = this.state.getPlayer(this.localPlayerId);
-    if (localPlayer?.gfx) {
-      this.cameras.main.startFollow(localPlayer.gfx, true, 0.1, 0.1);
-    }
-  }
+  setupCamera() {}
 
   destroyMap() {
     if (this.tileLayer) {
@@ -166,6 +174,9 @@ export class Scene extends Phaser.Scene {
         const player = new Player(pd.id, pd.x, pd.y);
         player.vx = pd.vx;
         player.vy = pd.vy;
+        player.angle = pd.angle;
+        player.weaponType = pd.weaponType;
+        player.health = pd.health;
         if (pd.id === data.playerId) {
           player.isLocal = true;
         }
@@ -202,6 +213,22 @@ export class Scene extends Phaser.Scene {
         player.targetY = pd.y;
         player.targetVx = pd.vx;
         player.targetVy = pd.vy;
+        player.targetAngle = pd.angle;
+        player.weaponType = pd.weaponType;
+        player.health = pd.health;
+      }
+    }
+
+    if (type === "Shoot") {
+      // Create bullet from another player's shot
+      const bullet = new Bullet(data, this.state.ctx);
+      this.state.bullets.push(bullet);
+    }
+
+    if (type === "BulletHit") {
+      const player = this.state.getPlayer(data.targetId);
+      if (player) {
+        player.health = data.health;
       }
     }
 
@@ -237,6 +264,7 @@ export class Scene extends Phaser.Scene {
       y: local.y,
       vx: local.vx,
       vy: local.vy,
+      angle: local.angle,
     });
   }
 
@@ -244,6 +272,26 @@ export class Scene extends Phaser.Scene {
     const alpha = this.accumulator / FIXED_DT;
     for (const player of this.state.players) {
       player.interpolate(alpha);
+    }
+    for (const bullet of this.state.bullets) {
+      bullet.interpolate(alpha);
+    }
+
+    // Camera: center on player, smooth aim offset towards cursor
+    const local = this.state.getPlayer(this.localPlayerId);
+    if (local?.gfx) {
+      const cam = this.cameras.main;
+      const pointer = this.input.activePointer;
+
+      // Target aim offset: 40% from screen center to mouse, in world space
+      const targetOffsetX = (pointer.x - cam.width / 2) / cam.zoom * 0.4;
+      const targetOffsetY = (pointer.y - cam.height / 2) / cam.zoom * 0.4;
+
+      // Smooth towards target offset
+      this.aimOffsetX += (targetOffsetX - this.aimOffsetX) * 0.14;
+      this.aimOffsetY += (targetOffsetY - this.aimOffsetY) * 0.14;
+
+      cam.centerOn(local.gfx.x + this.aimOffsetX, local.gfx.y + this.aimOffsetY);
     }
   }
 
