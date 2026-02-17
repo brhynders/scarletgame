@@ -158,6 +158,7 @@ Both client and server instantiate `GameState` with the same shared simulation c
 ```js
 const ctx = {
   isServer: true | false,     // Branch behavior in shared code
+  isClient: true | false,     // Convenience inverse of isServer
   sendMessage: (type, data) => ...,  // Abstracted networking
   scene: phaserScene | null,  // Only on client (for rendering)
   game: gameStateRef,         // Back-reference, set by GameState constructor
@@ -360,12 +361,12 @@ Client                    Server
 
 ```js
 export const protocol = {
-  ServerSnapshot: { id: 0, channel: "unreliable", fields: {} },
-  ClientSnapshot: { id: 1, channel: "unreliable", fields: {} },
-  Ready: { id: 2, channel: "reliable", fields: {} },
-  Welcome: { id: 3, channel: "reliable", fields: {} },
-  PlayerJoined: { id: 4, channel: "reliable", fields: {} },
-  PlayerLeft: { id: 5, channel: "reliable", fields: {} },
+  ServerSnapshot: { id: 0, channel: "unreliable", fields: { tick: Schema.u32, players: Schema.array(PlayerStruct) } },
+  ClientSnapshot: { id: 1, channel: "unreliable", fields: { tick: Schema.u32, x: Schema.f32, ... } },
+  Ready:          { id: 2, channel: "reliable",   fields: {} },
+  Welcome:        { id: 3, channel: "reliable",   fields: { playerId: Schema.u8, players: Schema.array(PlayerStruct) } },
+  PlayerJoined:   { id: 4, channel: "reliable",   fields: { id: Schema.u8, x: Schema.f32, y: Schema.f32 } },
+  PlayerLeft:     { id: 5, channel: "reliable",   fields: { id: Schema.u8 } },
 };
 ```
 
@@ -373,7 +374,7 @@ Each message type has:
 
 - **`id`**: Unique `u8` identifier, used as the first byte in the binary wire format
 - **`channel`**: `"reliable"` or `"unreliable"` — determines which data channel to send on
-- **`fields`**: Object mapping field names to `Schema` types (currently empty, to be populated)
+- **`fields`**: Object mapping field names to `Schema` types
 
 ### Message Semantics
 
@@ -510,22 +511,34 @@ const alpha = this.accumulator / FIXED_DT; // 0.0 to 1.0
 
 This is why every entity stores `prevX`/`prevY`/`prevAngle` at the start of each `update()`.
 
-### Snapshot Flow (Planned)
+### Snapshot Flow
 
 ```
 Client A tick:
   1. Run shared physics (GameState.update)
-  2. sendSnapshot() → ClientSnapshot to server (inputs/predicted state)
+  2. sendSnapshot() → ClientSnapshot {tick, x, y, vx, vy} to server
 
 Server tick:
-  1. Read ClientSnapshots from all clients
+  1. Read ClientSnapshots from all clients (discard stale by tick)
   2. Run shared physics (GameState.update)
-  3. sendSnapshot() → ServerSnapshot to all clients
+  3. sendSnapshot() → ServerSnapshot {tick, players[]} to all clients
 
 Client A receives ServerSnapshot:
+  - Discard if tick ≤ lastServerTick (stale/reordered packet)
   - Own player: reconcile (compare prediction vs authority)
   - Other players: update target positions, interpolate/smooth for rendering
 ```
+
+### Tick Sequence Numbers & Stale Snapshot Rejection
+
+Snapshots are sent on the unreliable (unordered) channel, so packets can arrive out of order. Both `ClientSnapshot` and `ServerSnapshot` include a `tick` field (`Schema.u32`) set to the sender's `tickCount` at the time of sending.
+
+On receive, each side compares the incoming `tick` against the last accepted tick and discards the packet if it's stale (≤ last tick):
+
+- **Client**: Tracks `this.lastServerTick`. On `ServerSnapshot`, skips if `data.tick <= this.lastServerTick`.
+- **Server**: Compares against the previously stored snapshot for that client (`this.clientSnapshots.get(clientId)?.tick`). Skips if `data.tick` is ≤ the stored value.
+
+At 64Hz, a `u32` tick counter overflows after ~2.1 years of continuous uptime — no wraparound handling is needed.
 
 ### Exponential Smoothing
 
@@ -601,10 +614,13 @@ Every entity receives `ctx` in its `update(ctx)` call. This gives entities acces
 
 ```js
 ctx.isServer; // boolean — true on server, false on client
+ctx.isClient; // boolean — true on client, false on server
 ctx.sendMessage; // function(type, data) — send network messages from entity code
 ctx.scene; // Phaser.Scene on client, null on server — for creating game objects
 ctx.game; // GameState back-reference — access other entities, game mode, etc.
 ```
+
+**`ctx.isClient`** — Convenience inverse of `ctx.isServer`. Makes conditional checks in entity code more readable (e.g., `if (ctx.isClient)` instead of `if (!ctx.isServer)`).
 
 **`ctx.sendMessage`** — Entities send event packets directly. A bullet entity can broadcast a hit event, a player entity can broadcast a death event. Server-authoritative events should be guarded with `if (ctx.isServer)`.
 
@@ -632,13 +648,13 @@ update(ctx) {
   }
 
   // Client-only: read local input, create Phaser objects
-  if (!ctx.isServer && this === ctx.game.localPlayer) {
+  if (ctx.isClient && this === ctx.game.localPlayer) {
     if (ctx.scene.keys.left.isDown) this.vx = -200;
   }
 }
 ```
 
-The pattern: shared physics runs everywhere, `ctx.isServer` guards server-authoritative side effects (sending events, enforcing rules), `!ctx.isServer` guards client-only input reading and Phaser object creation.
+The pattern: shared physics runs everywhere, `ctx.isServer` guards server-authoritative side effects (sending events, enforcing rules), `ctx.isClient` guards client-only input reading and Phaser object creation.
 
 ### Summary Table
 
@@ -693,6 +709,7 @@ Rather than globals or singletons, a `ctx` object is threaded through the system
 
 ```js
 ctx.isServer; // bool — branch behavior in shared code
+ctx.isClient; // bool — convenience inverse of isServer
 ctx.sendMessage; // (type, data) => void — send events from entity code
 ctx.scene; // Phaser.Scene | null — create/destroy game objects (null on server)
 ctx.game; // GameState — access players[], bullets[], mode, etc.
@@ -1105,6 +1122,7 @@ sendSnapshot() {
     health: p.health,
   }));
   this.net.broadcastMessage("ServerSnapshot", {
+    tick: this.tickCount,
     players,
   });
 }
@@ -1116,6 +1134,7 @@ sendSnapshot() {
 // client/src/game/Scene.js
 sendSnapshot() {
   this.net.sendMessage("ClientSnapshot", {
+    tick: this.tickCount,
     x: localPlayer.x,
     y: localPlayer.y,
     angle: localPlayer.angle,

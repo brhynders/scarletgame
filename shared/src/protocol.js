@@ -13,6 +13,7 @@ export const protocol = {
     id: 0,
     channel: "unreliable",
     fields: {
+      tick: Schema.u32,
       players: Schema.array(PlayerStruct),
     },
   },
@@ -20,6 +21,7 @@ export const protocol = {
     id: 1,
     channel: "unreliable",
     fields: {
+      tick: Schema.u32,
       x: Schema.f32,
       y: Schema.f32,
       vx: Schema.f32,

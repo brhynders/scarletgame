@@ -14,6 +14,7 @@ export class Server {
     this.net = new NetServer(protocol);
     this.game = new GameState({
       isServer: true,
+      isClient: false,
       sendMessage: (type, data) => this.net.broadcastMessage(type, data),
       scene: null,
     });
@@ -26,6 +27,7 @@ export class Server {
     this.net.onMessage = (clientId, type, data) =>
       this.onMessage(clientId, type, data);
 
+    this.tickCount = 0;
     this.last = performance.now();
     this.accumulator = 0;
   }
@@ -51,6 +53,7 @@ export class Server {
       // Run ticks
       while (this.accumulator >= FIXED_DT) {
         this.tick();
+        this.tickCount++;
         this.accumulator -= FIXED_DT;
       }
       // Sleep to avoid CPU lock
@@ -84,7 +87,7 @@ export class Server {
       vx: p.vx,
       vy: p.vy,
     }));
-    this.net.broadcastMessage("ServerSnapshot", { players });
+    this.net.broadcastMessage("ServerSnapshot", { tick: this.tickCount, players });
   }
 
   onConnect(clientId) {
@@ -131,6 +134,8 @@ export class Server {
     }
 
     if (type === "ClientSnapshot") {
+      const prev = this.clientSnapshots.get(clientId);
+      if (prev && data.tick <= prev.tick) return;
       this.clientSnapshots.set(clientId, data);
     }
   }

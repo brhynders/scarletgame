@@ -14,12 +14,15 @@ export class Scene extends Phaser.Scene {
     this.net = client;
     this.state = new GameState({
       isServer: false,
+      isClient: true,
       sendMessage: (type, data) => this.net.sendMessage(type, data),
       scene: this,
     });
 
+    this.tickCount = 0;
     this.accumulator = 0;
     this.localPlayerId = null;
+    this.lastServerTick = null;
   }
 
   create() {
@@ -96,6 +99,8 @@ export class Scene extends Phaser.Scene {
     }
 
     if (type === "ServerSnapshot") {
+      if (this.lastServerTick !== null && data.tick <= this.lastServerTick) return;
+      this.lastServerTick = data.tick;
       for (const pd of data.players) {
         if (pd.id === this.localPlayerId) continue;
         const player = this.state.getPlayer(pd.id);
@@ -112,6 +117,7 @@ export class Scene extends Phaser.Scene {
     this.accumulator += Math.min(delta, FIXED_DT * 5);
     while (this.accumulator >= FIXED_DT) {
       this.tick();
+      this.tickCount++;
       this.accumulator -= FIXED_DT;
     }
     this.interpolate();
@@ -127,6 +133,7 @@ export class Scene extends Phaser.Scene {
     const local = this.state.getPlayer(this.localPlayerId);
     if (!local) return;
     this.net.sendMessage("ClientSnapshot", {
+      tick: this.tickCount,
       x: local.x,
       y: local.y,
       vx: local.vx,
