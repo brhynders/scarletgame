@@ -1,0 +1,9 @@
+{
+  "name": "game-shared",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "type": "module",
+  "dependencies": {
+    "net-schema": "file:../lib/net-schema"
+  }
+}

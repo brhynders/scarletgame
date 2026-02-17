@@ -1,0 +1,13 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node ."
+  },
+  "type": "module",
+  "dependencies": {
+    "game-shared": "file:../shared",
+    "net-server": "file:../lib/net-server"
+  }
+}

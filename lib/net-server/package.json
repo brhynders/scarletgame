@@ -1,0 +1,11 @@
+{
+  "name": "net-server",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.js",
+  "dependencies": {
+    "net-schema": "file:../net-schema",
+    "node-datachannel": "^0.12.0",
+    "ws": "^8.18.0"
+  }
+}
