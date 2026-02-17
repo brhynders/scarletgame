@@ -4,9 +4,7 @@ import {
   FIXED_DT,
   GameState,
   Player,
-  GROUND_Y,
   PLAYER_RADIUS,
-  WORLD_WIDTH,
 } from "game-shared";
 
 export class Server {
@@ -30,6 +28,9 @@ export class Server {
     this.tickCount = 0;
     this.last = performance.now();
     this.accumulator = 0;
+
+    this.currentMap = "map";
+    this.game.loadMap(this.currentMap);
   }
 
   start() {
@@ -108,8 +109,16 @@ export class Server {
   onMessage(clientId, type, data) {
     if (type === "Ready") {
       const playerId = this.nextPlayerId++;
-      const spawnX = Math.random() * (WORLD_WIDTH - 200) + 100;
-      const spawnY = GROUND_Y - PLAYER_RADIUS;
+
+      const spawn = this.game.map.getRandomSpawn();
+      let spawnX, spawnY;
+      if (spawn) {
+        spawnX = spawn.x;
+        spawnY = spawn.y - PLAYER_RADIUS;
+      } else {
+        spawnX = this.game.map.pixelWidth / 2;
+        spawnY = this.game.map.pixelHeight / 2;
+      }
 
       const player = new Player(playerId, spawnX, spawnY);
       this.game.addPlayer(player);
@@ -123,7 +132,11 @@ export class Server {
         vx: p.vx,
         vy: p.vy,
       }));
-      this.net.sendMessage(clientId, "Welcome", { playerId, players });
+      this.net.sendMessage(clientId, "Welcome", {
+        playerId,
+        map: this.currentMap,
+        players,
+      });
 
       // Broadcast PlayerJoined to everyone else
       this.net.broadcastMessage(
@@ -138,5 +151,11 @@ export class Server {
       if (prev && data.tick <= prev.tick) return;
       this.clientSnapshots.set(clientId, data);
     }
+  }
+
+  changeMap(mapKey) {
+    this.currentMap = mapKey;
+    this.game.loadMap(mapKey);
+    this.net.broadcastMessage("RoundStart", { map: mapKey });
   }
 }

@@ -2,11 +2,11 @@ import {
   GRAVITY,
   JUMP_SPEED,
   MOVE_SPEED,
-  GROUND_Y,
   PLAYER_RADIUS,
   SMOOTH_FACTOR,
   FIXED_DT,
 } from "../data/constants.js";
+import { resolveTileCollision } from "../logic/collision.js";
 
 export class Player {
   prevX = 0;
@@ -17,6 +17,7 @@ export class Player {
   vy = 0;
   id = 0;
   isLocal = false;
+  onGround = false;
 
   // Smoothing targets for remote players
   targetX = 0;
@@ -50,11 +51,12 @@ export class Player {
       if (keys.left.isDown) this.vx = -MOVE_SPEED;
       if (keys.right.isDown) this.vx = MOVE_SPEED;
 
-      const onGround = this.y >= GROUND_Y - PLAYER_RADIUS;
-      if (keys.jump.isDown && onGround) {
+      if (keys.jump.isDown && this.onGround) {
         this.vy = JUMP_SPEED;
       }
     }
+
+    this.onGround = false;
 
     if (!ctx.isServer) {
       // Apply gravity and integrate
@@ -62,10 +64,9 @@ export class Player {
       this.x += this.vx * dt;
       this.y += this.vy * dt;
 
-      // Ground clamp
-      if (this.y >= GROUND_Y - PLAYER_RADIUS) {
-        this.y = GROUND_Y - PLAYER_RADIUS;
-        this.vy = 0;
+      // Tile collision
+      if (ctx.game.map) {
+        resolveTileCollision(this, ctx.game.map);
       }
     }
   }

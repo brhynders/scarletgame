@@ -5,8 +5,14 @@ import {
   FIXED_DT,
   WORLD_WIDTH,
   WORLD_HEIGHT,
-  GROUND_Y,
 } from "game-shared";
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return { r, g, b };
+}
 
 export class Scene extends Phaser.Scene {
   constructor(client) {
@@ -23,6 +29,10 @@ export class Scene extends Phaser.Scene {
     this.accumulator = 0;
     this.localPlayerId = null;
     this.lastServerTick = null;
+
+    this.tileLayer = null;
+    this.tilemap = null;
+    this.backgroundGfx = null;
   }
 
   create() {
@@ -47,11 +57,6 @@ export class Scene extends Phaser.Scene {
       this.cameras.main.setZoom(Math.max(zx, zy));
     });
 
-    // Draw ground line
-    const groundGfx = this.add.graphics();
-    groundGfx.lineStyle(2, 0x888888, 1);
-    groundGfx.lineBetween(0, GROUND_Y, WORLD_WIDTH, GROUND_Y);
-
     // Show loading text while waiting for server Welcome
     this.loadingText = this.add.text(
       WORLD_WIDTH / 2,
@@ -67,11 +72,96 @@ export class Scene extends Phaser.Scene {
 
   preload() {}
 
-  onMessage(type, data) {
+  async loadMap(mapKey) {
+    this.state.loadMap(mapKey);
+    const gameMap = this.state.map;
+
+    // Render background gradient
+    const topColor = hexToRgb(gameMap.background.top);
+    const bottomColor = hexToRgb(gameMap.background.bottom);
+    const bandHeight = 8;
+    const bands = Math.ceil(gameMap.pixelHeight / bandHeight);
+
+    this.backgroundGfx = this.add.graphics();
+    this.backgroundGfx.setDepth(-1000);
+
+    for (let i = 0; i < bands; i++) {
+      const t = bands > 1 ? i / (bands - 1) : 0;
+      const r = Math.round(topColor.r + (bottomColor.r - topColor.r) * t);
+      const g = Math.round(topColor.g + (bottomColor.g - topColor.g) * t);
+      const b = Math.round(topColor.b + (bottomColor.b - topColor.b) * t);
+      this.backgroundGfx.fillStyle((r << 16) | (g << 8) | b, 1);
+      this.backgroundGfx.fillRect(
+        0,
+        i * bandHeight,
+        gameMap.pixelWidth,
+        bandHeight,
+      );
+    }
+
+    // Load tileset texture
+    const textureKey = `tileset-${mapKey}`;
+    if (!this.textures.exists(textureKey)) {
+      await new Promise((resolve) => {
+        this.textures.once("addtexture", resolve);
+        this.textures.addBase64(textureKey, gameMap.tileset.image);
+      });
+    }
+
+    // Build Phaser tilemap from first visible layer
+    const layer = gameMap.layers.find((l) => l.visible) || gameMap.layers[0];
+    const data = layer.data.map((row) =>
+      row.map((tile) => (tile == null ? -1 : tile)),
+    );
+
+    this.tilemap = this.make.tilemap({
+      data,
+      tileWidth: gameMap.tileWidth,
+      tileHeight: gameMap.tileHeight,
+    });
+    const tileset = this.tilemap.addTilesetImage(
+      "tiles",
+      textureKey,
+      gameMap.tileWidth,
+      gameMap.tileHeight,
+      0,
+      0,
+    );
+    this.tileLayer = this.tilemap.createLayer(0, tileset, 0, 0);
+    this.tileLayer.setDepth(-500);
+  }
+
+  setupCamera(map) {
+    this.cameras.main.setBounds(0, 0, map.pixelWidth, map.pixelHeight);
+    const localPlayer = this.state.getPlayer(this.localPlayerId);
+    if (localPlayer?.gfx) {
+      this.cameras.main.startFollow(localPlayer.gfx, true, 0.1, 0.1);
+    }
+  }
+
+  destroyMap() {
+    if (this.tileLayer) {
+      this.tileLayer.destroy();
+      this.tileLayer = null;
+    }
+    if (this.tilemap) {
+      this.tilemap.destroy();
+      this.tilemap = null;
+    }
+    if (this.backgroundGfx) {
+      this.backgroundGfx.destroy();
+      this.backgroundGfx = null;
+    }
+  }
+
+  async onMessage(type, data) {
     if (type === "Welcome") {
       this.loadingText?.destroy();
       this.loadingText = null;
       this.localPlayerId = data.playerId;
+
+      await this.loadMap(data.map);
+
       for (const pd of data.players) {
         const player = new Player(pd.id, pd.x, pd.y);
         player.vx = pd.vx;
@@ -82,6 +172,8 @@ export class Scene extends Phaser.Scene {
         player.drawCircle(this.state.ctx);
         this.state.addPlayer(player);
       }
+
+      this.setupCamera(this.state.map);
     }
 
     if (type === "PlayerJoined") {
@@ -99,7 +191,8 @@ export class Scene extends Phaser.Scene {
     }
 
     if (type === "ServerSnapshot") {
-      if (this.lastServerTick !== null && data.tick <= this.lastServerTick) return;
+      if (this.lastServerTick !== null && data.tick <= this.lastServerTick)
+        return;
       this.lastServerTick = data.tick;
       for (const pd of data.players) {
         if (pd.id === this.localPlayerId) continue;
@@ -110,6 +203,12 @@ export class Scene extends Phaser.Scene {
         player.targetVx = pd.vx;
         player.targetVy = pd.vy;
       }
+    }
+
+    if (type === "RoundStart") {
+      this.destroyMap();
+      await this.loadMap(data.map);
+      this.setupCamera(this.state.map);
     }
   }
 

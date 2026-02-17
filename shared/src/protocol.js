@@ -38,6 +38,7 @@ export const protocol = {
     channel: "reliable",
     fields: {
       playerId: Schema.u8,
+      map: Schema.string,
       players: Schema.array(PlayerStruct),
     },
   },
@@ -55,6 +56,13 @@ export const protocol = {
     channel: "reliable",
     fields: {
       id: Schema.u8,
+    },
+  },
+  RoundStart: {
+    id: 6,
+    channel: "reliable",
+    fields: {
+      map: Schema.string,
     },
   },
 };

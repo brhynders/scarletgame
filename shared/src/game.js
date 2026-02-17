@@ -1,9 +1,19 @@
+import { GameMap } from "./logic/map.js";
+import { maps } from "./data/maps.js";
+
 export class GameState {
   players = [];
+  map = null;
 
   constructor(ctx) {
     this.ctx = ctx;
     this.ctx.game = this;
+  }
+
+  loadMap(mapKey) {
+    const data = maps[mapKey];
+    if (!data) throw new Error(`Unknown map: ${mapKey}`);
+    this.map = new GameMap(data);
   }
 
   update() {
