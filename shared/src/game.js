@@ -7,7 +7,23 @@ export class GameState {
   }
 
   update() {
-    // Loop through entities and update them (passing ctx)
-    // Run current modes rules (ctf. dm, tdm, etc) and pass it ctx
+    for (const player of this.players) {
+      player.update(this.ctx);
+    }
+  }
+
+  getPlayer(id) {
+    return this.players.find((p) => p.id === id);
+  }
+
+  addPlayer(player) {
+    this.players.push(player);
+  }
+
+  removePlayer(id) {
+    const idx = this.players.findIndex((p) => p.id === id);
+    if (idx !== -1) {
+      this.players.splice(idx, 1);
+    }
   }
 }

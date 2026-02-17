@@ -183,6 +183,7 @@ Creates a `NetClient` with the shared protocol, connects to the signaling server
 ### Game.jsx - Phaser Bootstrapper
 
 React component that creates a `Phaser.Game` instance on mount and destroys it on unmount. Config:
+
 - Resolution: 1920x1080
 - Scale mode: `Phaser.Scale.RESIZE` (fills browser window)
 - Background: `#0d1112`
@@ -248,6 +249,7 @@ Server.loop()
 ```
 
 **Connection lifecycle** (intended flow):
+
 1. WebRTC connects → `onConnect(clientId)` fires (do nothing, wait for Ready)
 2. Client sends `Ready` → server adds player, sends `Welcome` with initial state, broadcasts `PlayerJoined`
 3. Game loop runs, snapshots exchanged every tick
@@ -285,9 +287,14 @@ class GameState {
 
 ```js
 class Player {
-  prevX = null; prevY = null; prevAngle = null;  // for sub-tick interpolation
-  x = null; y = null; angle = null;              // current position
-  vx = null; vy = null;                          // velocity
+  prevX = null;
+  prevY = null;
+  prevAngle = null; // for sub-tick interpolation
+  x = null;
+  y = null;
+  angle = null; // current position
+  vx = null;
+  vy = null; // velocity
   team = null;
   health = 100;
 
@@ -306,7 +313,7 @@ class Player {
 ### Constants (`shared/src/data/constants.js`)
 
 ```js
-export const FIXED_DT = 1000 / 64;    // 64 tick rate (~15.625ms per tick)
+export const FIXED_DT = 1000 / 64; // 64 tick rate (~15.625ms per tick)
 export const WORLD_WIDTH = 1920;
 export const WORLD_HEIGHT = 1080;
 ```
@@ -324,6 +331,7 @@ export const WORLD_HEIGHT = 1080;
 ### Transport: WebRTC Data Channels
 
 Two channels per connection:
+
 - **`reliable`**: Ordered delivery (TCP-like). For critical events (Ready, Welcome, PlayerJoined, PlayerLeft).
 - **`unreliable`**: Unordered, `maxRetransmits: 0` (UDP-like). For high-frequency state (ServerSnapshot, ClientSnapshot).
 
@@ -354,28 +362,29 @@ Client                    Server
 export const protocol = {
   ServerSnapshot: { id: 0, channel: "unreliable", fields: {} },
   ClientSnapshot: { id: 1, channel: "unreliable", fields: {} },
-  Ready:          { id: 2, channel: "reliable",   fields: {} },
-  Welcome:        { id: 3, channel: "reliable",   fields: {} },
-  PlayerJoined:   { id: 4, channel: "reliable",   fields: {} },
-  PlayerLeft:     { id: 5, channel: "reliable",   fields: {} },
+  Ready: { id: 2, channel: "reliable", fields: {} },
+  Welcome: { id: 3, channel: "reliable", fields: {} },
+  PlayerJoined: { id: 4, channel: "reliable", fields: {} },
+  PlayerLeft: { id: 5, channel: "reliable", fields: {} },
 };
 ```
 
 Each message type has:
+
 - **`id`**: Unique `u8` identifier, used as the first byte in the binary wire format
 - **`channel`**: `"reliable"` or `"unreliable"` — determines which data channel to send on
 - **`fields`**: Object mapping field names to `Schema` types (currently empty, to be populated)
 
 ### Message Semantics
 
-| Message | Direction | Channel | Purpose |
-|---------|-----------|---------|---------|
+| Message          | Direction            | Channel    | Purpose                                          |
+| ---------------- | -------------------- | ---------- | ------------------------------------------------ |
 | `ServerSnapshot` | Server → All Clients | unreliable | Authoritative world state broadcast (every tick) |
-| `ClientSnapshot` | Client → Server | unreliable | Client's local state / input (every tick) |
-| `Ready` | Client → Server | reliable | "I'm loaded and ready to play" |
-| `Welcome` | Server → Client | reliable | Initial game state sent on join |
-| `PlayerJoined` | Server → All Clients | reliable | New player connected event |
-| `PlayerLeft` | Server → All Clients | reliable | Player disconnected event |
+| `ClientSnapshot` | Client → Server      | unreliable | Client's local state / input (every tick)        |
+| `Ready`          | Client → Server      | reliable   | "I'm loaded and ready to play"                   |
+| `Welcome`        | Server → Client      | reliable   | Initial game state sent on join                  |
+| `PlayerJoined`   | Server → All Clients | reliable   | New player connected event                       |
+| `PlayerLeft`     | Server → All Clients | reliable   | Player disconnected event                        |
 
 ### NetClient API (`lib/net-client`)
 
@@ -383,14 +392,14 @@ Each message type has:
 const client = new NetClient(protocol);
 
 // Event callbacks (assign before connecting)
-client.onConnect = () => {};                   // WebRTC channels open
-client.onDisconnect = () => {};                // Connection lost
-client.onMessage = (type, fields) => {};       // Decoded message received
-client.onError = (err) => {};                  // Decode/connection error
+client.onConnect = () => {}; // WebRTC channels open
+client.onDisconnect = () => {}; // Connection lost
+client.onMessage = (type, fields) => {}; // Decoded message received
+client.onError = (err) => {}; // Decode/connection error
 
-client.connect("ws://localhost:3001");         // Start signaling
-client.sendMessage("Ready", {});               // Send a message
-client.disconnect();                           // Clean shutdown
+client.connect("ws://localhost:3001"); // Start signaling
+client.sendMessage("Ready", {}); // Send a message
+client.disconnect(); // Clean shutdown
 ```
 
 ### NetServer API (`lib/net-server`)
@@ -425,19 +434,19 @@ All game messages are binary-encoded using a custom schema-driven codec. This ke
 ```js
 import { Schema } from "net-schema";
 
-Schema.u8       // Unsigned 8-bit integer
-Schema.u16      // Unsigned 16-bit integer
-Schema.u32      // Unsigned 32-bit integer
-Schema.i8       // Signed 8-bit integer
-Schema.i16      // Signed 16-bit integer
-Schema.i32      // Signed 32-bit integer
-Schema.f32      // 32-bit float
-Schema.f64      // 64-bit float
-Schema.bool     // Boolean (1 byte)
-Schema.string   // UTF-8 string (u16 length prefix + bytes)
+Schema.u8; // Unsigned 8-bit integer
+Schema.u16; // Unsigned 16-bit integer
+Schema.u32; // Unsigned 32-bit integer
+Schema.i8; // Signed 8-bit integer
+Schema.i16; // Signed 16-bit integer
+Schema.i32; // Signed 32-bit integer
+Schema.f32; // 32-bit float
+Schema.f64; // 64-bit float
+Schema.bool; // Boolean (1 byte)
+Schema.string; // UTF-8 string (u16 length prefix + bytes)
 
-Schema.array(elementType)     // Array (u16 count prefix + elements)
-Schema.struct({ field: type }) // Nested struct
+Schema.array(elementType); // Array (u16 count prefix + elements)
+Schema.struct({ field: type }); // Nested struct
 ```
 
 ### Wire Format
@@ -591,10 +600,10 @@ All game simulation happens inside entity `update(ctx)` methods and rule `update
 Every entity receives `ctx` in its `update(ctx)` call. This gives entities access to everything they need:
 
 ```js
-ctx.isServer    // boolean — true on server, false on client
-ctx.sendMessage // function(type, data) — send network messages from entity code
-ctx.scene       // Phaser.Scene on client, null on server — for creating game objects
-ctx.game        // GameState back-reference — access other entities, game mode, etc.
+ctx.isServer; // boolean — true on server, false on client
+ctx.sendMessage; // function(type, data) — send network messages from entity code
+ctx.scene; // Phaser.Scene on client, null on server — for creating game objects
+ctx.game; // GameState back-reference — access other entities, game mode, etc.
 ```
 
 **`ctx.sendMessage`** — Entities send event packets directly. A bullet entity can broadcast a hit event, a player entity can broadcast a death event. Server-authoritative events should be guarded with `if (ctx.isServer)`.
@@ -633,16 +642,16 @@ The pattern: shared physics runs everywhere, `ctx.isServer` guards server-author
 
 ### Summary Table
 
-| Feature | Authority | Sync Method | Smoothed? | Example |
-|---------|-----------|-------------|-----------|---------|
-| Local player movement | Client | ClientSnapshot (unreliable) | N/A (local) | Position sent every tick |
-| Remote player positions | Server | ServerSnapshot (unreliable) | Yes | Exponential smoothing in `smooth()` |
-| Bullets / projectiles | Server (creation) | Event packet (reliable) | No | `Shoot` event, then deterministic sim |
-| Health / damage | Server | ServerSnapshot (unreliable) | No | Server computes, included in snapshot |
-| Player join/leave | Server | Event packet (reliable) | No | `PlayerJoined` / `PlayerLeft` |
-| Scoring / game state | Server | Event packet (reliable) | No | `ScoreUpdate`, `RoundEnd` |
-| Item pickups | Server | Event packet (reliable) | No | Server validates, broadcasts result |
-| Explosions / effects | Server (creation) | Event packet (reliable) | No | Deterministic from creation params |
+| Feature                 | Authority         | Sync Method                 | Smoothed?   | Example                               |
+| ----------------------- | ----------------- | --------------------------- | ----------- | ------------------------------------- |
+| Local player movement   | Client            | ClientSnapshot (unreliable) | N/A (local) | Position sent every tick              |
+| Remote player positions | Server            | ServerSnapshot (unreliable) | Yes         | Exponential smoothing in `smooth()`   |
+| Bullets / projectiles   | Server (creation) | Event packet (reliable)     | No          | `Shoot` event, then deterministic sim |
+| Health / damage         | Server            | ServerSnapshot (unreliable) | No          | Server computes, included in snapshot |
+| Player join/leave       | Server            | Event packet (reliable)     | No          | `PlayerJoined` / `PlayerLeft`         |
+| Scoring / game state    | Server            | Event packet (reliable)     | No          | `ScoreUpdate`, `RoundEnd`             |
+| Item pickups            | Server            | Event packet (reliable)     | No          | Server validates, broadcasts result   |
+| Explosions / effects    | Server (creation) | Event packet (reliable)     | No          | Deterministic from creation params    |
 
 ---
 
@@ -654,14 +663,14 @@ ES modules everywhere. `import`/`export`, never CommonJS `require`.
 
 ### Naming
 
-| Thing | Convention | Examples |
-|-------|-----------|----------|
-| Classes | PascalCase | `GameState`, `NetClient`, `PeerManager` |
-| Methods/functions | camelCase | `sendMessage`, `broadcastMessage`, `createCodec` |
-| Constants | SCREAMING_SNAKE_CASE | `FIXED_DT`, `WORLD_WIDTH` |
-| Class files | PascalCase | `MultiplayerClient.js`, `Scene.js`, `Game.jsx` |
-| Module/data files | camelCase | `codec.js`, `schema.js`, `protocol.js`, `game.js` |
-| React components | PascalCase function + `.jsx` extension | `App.jsx`, `Menu.jsx` |
+| Thing             | Convention                             | Examples                                          |
+| ----------------- | -------------------------------------- | ------------------------------------------------- |
+| Classes           | PascalCase                             | `GameState`, `NetClient`, `PeerManager`           |
+| Methods/functions | camelCase                              | `sendMessage`, `broadcastMessage`, `createCodec`  |
+| Constants         | SCREAMING_SNAKE_CASE                   | `FIXED_DT`, `WORLD_WIDTH`                         |
+| Class files       | PascalCase                             | `MultiplayerClient.js`, `Scene.js`, `Game.jsx`    |
+| Module/data files | camelCase                              | `codec.js`, `schema.js`, `protocol.js`, `game.js` |
+| React components  | PascalCase function + `.jsx` extension | `App.jsx`, `Menu.jsx`                             |
 
 ### Event Callbacks
 
@@ -683,10 +692,10 @@ this.onMessage?.(clientId, type, fields);
 Rather than globals or singletons, a `ctx` object is threaded through the system. Created at the top level (Scene or Server), passed to GameState, then to every entity and rule `update()`:
 
 ```js
-ctx.isServer     // bool — branch behavior in shared code
-ctx.sendMessage  // (type, data) => void — send events from entity code
-ctx.scene        // Phaser.Scene | null — create/destroy game objects (null on server)
-ctx.game         // GameState — access players[], bullets[], mode, etc.
+ctx.isServer; // bool — branch behavior in shared code
+ctx.sendMessage; // (type, data) => void — send events from entity code
+ctx.scene; // Phaser.Scene | null — create/destroy game objects (null on server)
+ctx.game; // GameState — access players[], bullets[], mode, etc.
 ```
 
 Entities use `ctx.sendMessage` to fire event packets (guarded by `ctx.isServer` for server-authoritative events). Entities use `ctx.scene` to create Phaser display objects like sprites and particles (guarded by `!ctx.isServer` since scene is null on the server). See [The ctx Object in Entity Code](#the-ctx-object-in-entity-code) for full details.
@@ -819,7 +828,7 @@ class GameState {
   update() {
     for (const player of this.players) player.update(this.ctx);
     for (const bullet of this.bullets) bullet.update(this.ctx);
-    this.bullets = this.bullets.filter(b => b.alive); // cleanup dead
+    this.bullets = this.bullets.filter((b) => b.alive); // cleanup dead
   }
 }
 ```
@@ -864,12 +873,12 @@ export const protocol = {
   // ... existing messages ...
 
   Shoot: {
-    id: 6,                        // Next available ID (u8, must be unique)
-    channel: "reliable",          // "reliable" for events, "unreliable" for state
+    id: 6, // Next available ID (u8, must be unique)
+    channel: "reliable", // "reliable" for events, "unreliable" for state
     fields: {
-      x: Schema.f32,             // Starting position
+      x: Schema.f32, // Starting position
       y: Schema.f32,
-      angle: Schema.f32,         // Direction
+      angle: Schema.f32, // Direction
     },
   },
 };
@@ -899,7 +908,11 @@ onMessage(type, data) {
 
 ```js
 // Client sending
-this.net.sendMessage("Shoot", { x: player.x, y: player.y, angle: player.angle });
+this.net.sendMessage("Shoot", {
+  x: player.x,
+  y: player.y,
+  angle: player.angle,
+});
 
 // Server broadcasting
 this.net.broadcastMessage("Shoot", { x, y, angle }, excludeClientId);
@@ -907,16 +920,16 @@ this.net.broadcastMessage("Shoot", { x, y, angle }, excludeClientId);
 
 ### Schema field type reference
 
-| For this kind of data | Use this type |
-|----------------------|---------------|
-| Small integers (0-255) | `Schema.u8` |
-| Player/entity IDs | `Schema.u16` or `Schema.u32` |
-| Positions, velocities | `Schema.f32` |
-| High-precision values | `Schema.f64` |
-| Flags | `Schema.bool` |
-| Names, chat | `Schema.string` |
+| For this kind of data     | Use this type                          |
+| ------------------------- | -------------------------------------- |
+| Small integers (0-255)    | `Schema.u8`                            |
+| Player/entity IDs         | `Schema.u16` or `Schema.u32`           |
+| Positions, velocities     | `Schema.f32`                           |
+| High-precision values     | `Schema.f64`                           |
+| Flags                     | `Schema.bool`                          |
+| Names, chat               | `Schema.string`                        |
 | Lists of players/entities | `Schema.array(Schema.struct({ ... }))` |
-| Nested data | `Schema.struct({ field: type })` |
+| Nested data               | `Schema.struct({ field: type })`       |
 
 ### Channel selection
 
@@ -1062,7 +1075,6 @@ export const protocol = {
     id: 0,
     channel: "unreliable",
     fields: {
-      tick: Schema.u32,
       players: Schema.array(PlayerStruct),
     },
   },
@@ -1074,9 +1086,6 @@ export const protocol = {
       x: Schema.f32,
       y: Schema.f32,
       angle: Schema.f32,
-      inputLeft: Schema.bool,
-      inputRight: Schema.bool,
-      inputJump: Schema.bool,
     },
   },
   // ... other messages
@@ -1096,7 +1105,6 @@ sendSnapshot() {
     health: p.health,
   }));
   this.net.broadcastMessage("ServerSnapshot", {
-    tick: this.tickCount,
     players,
   });
 }
@@ -1108,13 +1116,9 @@ sendSnapshot() {
 // client/src/game/Scene.js
 sendSnapshot() {
   this.net.sendMessage("ClientSnapshot", {
-    tick: this.tickCount,
     x: localPlayer.x,
     y: localPlayer.y,
     angle: localPlayer.angle,
-    inputLeft: this.keys.left.isDown,
-    inputRight: this.keys.right.isDown,
-    inputJump: this.keys.jump.isDown,
   });
 }
 ```
@@ -1129,7 +1133,7 @@ onMessage(type, data) {
       const player = this.game.players.find(p => p.id === pData.id);
       if (!player) continue;
       if (player === this.localPlayer) {
-        // Reconcile: compare predicted state vs server state
+        // Set health (server authorative)
       } else {
         // Update remote player target position (smooth() will ease toward it)
         player.x = pData.x;
@@ -1152,5 +1156,5 @@ onMessage(clientId, type, data) {
 ### Key principles
 
 - **Snapshots** (unreliable) are for non-deterministic state that drifts — sent every tick (~64/sec), newer replaces older. Entities in snapshots get exponentially smoothed on the client.
-- **Events** (reliable) are for discrete moments and deterministic entity creation — sent once, must arrive. Both sides simulate deterministic entities identically from the event data, so they never need snapshot bandwidth.
+- **Events** (reliable) are for discrete moments and deterministic entity creation — sent once, must arrive. Both sides simulate deterministic entities identically from the event data, so they never need snapshot bandwidth. Some events could be unreliable, when missing one isn't critical.
 - **Don't put deterministic entities in snapshots.** If a bullet is created from the same params on both sides and uses the same shared physics, it will be in the same place on both sides. No need to sync it every tick.

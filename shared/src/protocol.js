@@ -1,15 +1,30 @@
 import { Schema } from "net-schema";
 
+const PlayerStruct = Schema.struct({
+  id: Schema.u8,
+  x: Schema.f32,
+  y: Schema.f32,
+  vx: Schema.f32,
+  vy: Schema.f32,
+});
+
 export const protocol = {
   ServerSnapshot: {
     id: 0,
     channel: "unreliable",
-    fields: {},
+    fields: {
+      players: Schema.array(PlayerStruct),
+    },
   },
   ClientSnapshot: {
     id: 1,
     channel: "unreliable",
-    fields: {},
+    fields: {
+      x: Schema.f32,
+      y: Schema.f32,
+      vx: Schema.f32,
+      vy: Schema.f32,
+    },
   },
   Ready: {
     id: 2,
@@ -19,16 +34,25 @@ export const protocol = {
   Welcome: {
     id: 3,
     channel: "reliable",
-    fields: {},
+    fields: {
+      playerId: Schema.u8,
+      players: Schema.array(PlayerStruct),
+    },
   },
   PlayerJoined: {
     id: 4,
     channel: "reliable",
-    fields: {},
+    fields: {
+      id: Schema.u8,
+      x: Schema.f32,
+      y: Schema.f32,
+    },
   },
   PlayerLeft: {
     id: 5,
     channel: "reliable",
-    fields: {},
+    fields: {
+      id: Schema.u8,
+    },
   },
 };
